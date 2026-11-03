@@ -1,0 +1,3 @@
+spectre_bin/*.mod
+spectre_bin/output/*
+spectre_bin/main
