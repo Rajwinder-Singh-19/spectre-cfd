@@ -4,7 +4,7 @@ fftw_include = -I/usr/include -lfftw3
 
 main: $(files) main.f90
 	mkdir output
-	mpif90 -o main $(files) main.f90 -O3 $(fftw_include)
+	mpif90 -o main $(files) main.f90 -O3 -ffree-line-length-none $(fftw_include) 
 clean: 
 	rm *.mod
 	rm main

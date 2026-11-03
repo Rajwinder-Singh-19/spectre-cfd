@@ -160,7 +160,9 @@ contains
       !--------------------------------------------------
 
       p = cmplx(0.0_c_double, 0.0_C_DOUBLE, C_DOUBLE)
-
+      u = cmplx(0.0_c_double, 0.0_C_DOUBLE, C_DOUBLE)
+      v = cmplx(0.0_c_double, 0.0_C_DOUBLE, C_DOUBLE)
+      
       call Seed_Perturbation(u, v, Ny, Nx, Ly, dy, &
                              kx, start_row, curr_rank_mpi, &
                              num_ranks_mpi, ierr_mpi, eps_pert, k_mode_seed)
