@@ -55,8 +55,8 @@ contains
       inv_Nx = 1.0_c_double/real(Nx, c_double)
 
       ! 1. Dealias and compute spectral spatial derivatives
-      call Dealias_Stronger(u_hat, Ny, Nx, Lx, kx)
-      call Dealias_Stronger(v_hat, Ny, Nx, Lx, kx)
+      call Dealias(u_hat, Ny, Nx, Lx, kx)
+      call Dealias(v_hat, Ny, Nx, Lx, kx)
 
       call Dx_Spectral(u_hat, Ny, Nx, kx, curr_rank_mpi, num_ranks_mpi, du_dx)
       call Dx_Spectral(v_hat, Ny, Nx, kx, curr_rank_mpi, num_ranks_mpi, dv_dx)
@@ -89,8 +89,8 @@ contains
       call Fourier_Transform(conv_u_r, Ny, Nx, forward_fft_plan, u_star)
       call Fourier_Transform(conv_v_r, Ny, Nx, forward_fft_plan, v_star)
 
-      call Dealias_Stronger(u_star, Ny, Nx, Lx, kx)
-      call Dealias_Stronger(v_star, Ny, Nx, Lx, kx)
+      call Dealias(u_star, Ny, Nx, Lx, kx)
+      call Dealias(v_star, Ny, Nx, Lx, kx)
 
       u_star = u_hat - dt*u_star
       v_star = v_hat - dt*v_star

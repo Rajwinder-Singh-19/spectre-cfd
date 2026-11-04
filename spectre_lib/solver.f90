@@ -2,7 +2,7 @@ module solver
    implicit none
 
 contains
-   subroutine Fractional_Step_Solver(Nx, Ny_g, Re, epsilon_svv, Cs, cfl_target, n_steps, dpdx, eps_pert, k_mode_seed, curr_rank_mpi, num_ranks_mpi, ierr_mpi)
+   subroutine Fractional_Step_Solver(Nx, Ny_g, Re, epsilon_svv, Cs, cfl_target, n_steps, dpdx, eps_pert, k_mode_seed, kc_ratio, curr_rank_mpi, num_ranks_mpi, ierr_mpi)
 
       use, intrinsic :: iso_c_binding
       use mpi
@@ -40,6 +40,7 @@ contains
 
       real(c_double), intent(in) :: eps_pert
       integer, intent(in) :: k_mode_seed
+      real(c_double), intent(in)::kc_ratio
 
       integer, intent(in) :: n_steps
       real(c_double) :: dpdx
@@ -153,7 +154,7 @@ contains
 
       k_nyq = maxval(abs(kx))
 
-      kc = (1.0_c_double/7.0_c_double)*k_nyq
+      kc = kc_ratio*k_nyq
 
       !--------------------------------------------------
       ! Main time_s integration loop
@@ -190,7 +191,7 @@ contains
          !-----------------------------------------------
 
          do i = 1, Nx
-            call Kolmogorov_Sharp_SVV(kx(i), epsilon_svv, kc, k_nyq, Q_k, nu_svv(i))
+            call Exponential_SVV(kx(i), epsilon_svv, kc, k_nyq, Q_k, nu_svv(i))
          end do
 
          !-----------------------------------------------
@@ -242,8 +243,8 @@ contains
             curr_rank_mpi, num_ranks_mpi, ierr_mpi, u, v)
 
          !call Filter_Y(u, v, Ny, Nx, curr_rank_mpi, num_ranks_mpi, ierr_mpi)
-         call Dealias_Stronger(u, Ny, Nx, Lx, kx)
-         call Dealias_Stronger(v, Ny, Nx, Lx, kx)
+         call Dealias(u, Ny, Nx, Lx, kx)
+         call Dealias(v, Ny, Nx, Lx, kx)
 
          time_s = time_s + dt
 

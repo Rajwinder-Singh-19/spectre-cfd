@@ -22,18 +22,24 @@ program main
    real(c_double)::dpdx
    real(c_double)::eps_pert
    integer :: k_mode_seed
-   namelist /spectre_config/ Nx, Ny_g, Re, epsilon_svv, Cs, cfl_target, n_steps, dpdx, eps_pert, k_mode_seed
+   real(c_double)::kc_ratio
+   namelist /spectre_parameters/ Nx, Ny_g, Re, epsilon_svv, Cs, cfl_target, n_steps, dpdx, eps_pert, k_mode_seed, kc_ratio
 
    call Init_MPI(curr_rank_mpi, num_ranks_mpi, ierr_mpi)
 
    if (curr_rank_mpi == 0) then
-      open (newunit=file_unit, file="config.nml", status="old", action="read", iostat=io_status)
+      open (newunit=file_unit, file="spectre_config.nml", status="old", action="read", iostat=io_status)
       if (io_status /= 0) then
          print *, "Error: Namelist file not found."
          call MPI_Abort(MPI_COMM_WORLD, io_status, ierr_mpi)
       end if
 
-      read (file_unit, nml=spectre_config, iostat=io_status)
+      !if (abs(kc_ratio - 0.5_c_double) <= 1e-12) then
+      !  print *, "Turbulence Highpass Cutoff Ratio kc_ratio is unstable below 0.5"
+      !   call MPI_Abort(MPI_COMM_WORLD, io_status, ierr_mpi)
+      !end if
+
+      read (file_unit, nml=spectre_parameters, iostat=io_status)
       if (io_status /= 0) then
          print *, "Error reading namelist parameters."
          call MPI_Abort(MPI_COMM_WORLD, io_status, ierr_mpi)
@@ -55,6 +61,7 @@ program main
    call MPI_Bcast(cfl_target, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD, ierr_mpi)
    call MPI_Bcast(dpdx, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD, ierr_mpi)
    call MPI_Bcast(eps_pert, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD, ierr_mpi)
+   call MPI_Bcast(kc_ratio, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr_mpi)
 
    ! --- PRINT FROM RANK 0 ONLY ---
    if (curr_rank_mpi == 0) then
@@ -71,19 +78,20 @@ program main
       print '(A25, F8.4)', "Driving Gradient:", dpdx
       print '(A25, F8.4)', "Seed Amp:", eps_pert
       print '(A25, I6)', "Seed Mode:", k_mode_seed
+      print '(A25, F8.4)', "Turb. HP Cutoff:", kc_ratio
       print '(A25, I4)', " Running on MPI Ranks:", num_ranks_mpi
       print '(A)', "=============================================================================================="
    end if
 
    call MPI_Barrier(MPI_COMM_WORLD, ierr_mpi)
-   
+
    start_time = MPI_Wtime()
-   
-   call Fractional_Step_Solver(Nx, Ny_g, Re, epsilon_svv, Cs, cfl_target, n_steps, dpdx, eps_pert, k_mode_seed, curr_rank_mpi, num_ranks_mpi, ierr_mpi)
-   
+
+   call Fractional_Step_Solver(Nx, Ny_g, Re, epsilon_svv, Cs, cfl_target, n_steps, dpdx, eps_pert, k_mode_seed, kc_ratio, curr_rank_mpi, num_ranks_mpi, ierr_mpi)
+
    end_time = MPI_Wtime()
    local_elapsed = end_time - start_time
-   
+
    call MPI_Reduce(local_elapsed, max_elapsed, 1, MPI_DOUBLE_PRECISION, &
                    MPI_MAX, 0, MPI_COMM_WORLD, ierr_mpi)
 

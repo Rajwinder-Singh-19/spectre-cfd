@@ -24,22 +24,22 @@ make
 ### Fresh Execution After Compiling
 
 ```bash
-nano config.nml # Edit simulation parameters in this file
-mpirun -np <num_procs> ./main
+nano spectre_config.nml # Edit simulation parameters in this file
+mpirun -np <num_procs> ./spectre
 ```
 
 ### Re-Execution
 
 ```bash
-nano config.nml # Change parameters here. No need to recompile for new simulation parameters
+nano spectre_config.nml # Change parameters here. No need to recompile for new simulation parameters
 make init
-mpirun -np <num_procs> ./main
+mpirun -np <num_procs> ./spectre
 ```
 
 ### NCI Gadi Execution
 
 ```bash
 make
-nano config.nml
+nano spectre_config.nml
 qsub myNCIJob.sh
 ```

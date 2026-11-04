@@ -4,11 +4,11 @@ fftw_include = -I/usr/include -lfftw3
 
 main: $(files) main.f90
 	mkdir output
-	mpif90 -o main $(files) main.f90 -O3 -ffree-line-length-none $(fftw_include) 
+	mpif90 -o spectre $(files) main.f90 -O3 -ffree-line-length-none $(fftw_include) 
 clean: 
 	rm -rf output
 	rm *.mod
-	rm main
+	rm spectre
 init: 
 	rm -rf output
 	mkdir output
