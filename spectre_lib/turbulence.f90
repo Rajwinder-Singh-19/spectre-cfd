@@ -293,7 +293,7 @@ contains
       !  u =  dpsi/dy = eps * cos(kx) * sin(2pi y/Ly)*(pi/Ly)
       !  v = -dpsi/dx = eps * k * sin(kx) * sin^2(pi y/Ly)
       !
-      !  spectral (your FFTW convention):
+      !  spectral (FFTW convention):
       !      û(+k) = (Nx/2) * eps * dfdy             (real)
       !      v̂(+k) = (Nx/2) * eps * (-i) * k * fy    (imag, neg)
       !      û(-k) = conj(û(+k)), v̂(-k) = conj(v̂(+k))

@@ -1,4 +1,4 @@
-# SPECTRE - Parallel, Pseudo-Spectral, Turbulent, Incompressible Flow Navier-Stokes Solver  
+# SPECTRE - Parallel, Pseudo-Spectral Navier-Stokes Solver for Turbulent Channel Flow  
 
 ```bash
 cd spectre_bin # Change the directory before running all the commands below

@@ -28,6 +28,7 @@ contains
       idist = 1
       odist = 1
 
+      ! Batch FFT Plan
       fft_plan = fftw_plan_many_dft(rank, n_dims, howmany, &
                                     f_in, n_dims, istride, idist, &
                                     f_out, n_dims, ostride, odist, &
@@ -62,6 +63,7 @@ contains
       idist = 1
       odist = 1
 
+      ! Batch FFT Plan
       fft_plan = fftw_plan_many_dft(rank, n_dims, howmany, &
                                     f_in, n_dims, istride, idist, &
                                     f_out, n_dims, ostride, odist, &

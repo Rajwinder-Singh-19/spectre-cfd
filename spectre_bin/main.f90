@@ -58,9 +58,9 @@ program main
 
    ! --- PRINT FROM RANK 0 ONLY ---
    if (curr_rank_mpi == 0) then
-      print '(A)', "========================================="
-      print '(A)', "     SPECTRE SIMULATION PARAMETERS       "
-      print '(A)', "========================================="
+      print '(A)', "==============================================================================================="
+      print '(A)', "     SPECTRE - Parallel, Pseudo-Spectral Navier-Stokes Solver for Turbulent Channel Flow"
+      print '(A)', "=============================================================================================="
       print '(A25, I6)', " Grid Size Nx:", Nx
       print '(A25, I6)', " Grid Size Ny_g:", Ny_g
       print '(A25, F8.2)', " Reynolds Number Re:", Re
@@ -72,7 +72,7 @@ program main
       print '(A25, F8.4)', "Seed Amp:", eps_pert
       print '(A25, I6)', "Seed Mode:", k_mode_seed
       print '(A25, I4)', " Running on MPI Ranks:", num_ranks_mpi
-      print '(A)', "========================================="
+      print '(A)', "=============================================================================================="
    end if
 
    call MPI_Barrier(MPI_COMM_WORLD, ierr_mpi)
