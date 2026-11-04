@@ -153,7 +153,7 @@ contains
 
       k_nyq = maxval(abs(kx))
 
-      kc = (2.0_c_double/3.0_c_double)*k_nyq
+      kc = (1.0_c_double/7.0_c_double)*k_nyq
 
       !--------------------------------------------------
       ! Main time_s integration loop

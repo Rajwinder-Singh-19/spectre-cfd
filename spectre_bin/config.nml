@@ -5,7 +5,7 @@
     epsilon_svv = 1.0e-4,
     Cs = 0.2,
     cfl_target = 0.1,
-    n_steps = 20000
+    n_steps = 40000
     dpdx = -1
     eps_pert = 2
     k_mode_seed = 2
