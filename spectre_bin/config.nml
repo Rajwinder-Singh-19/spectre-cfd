@@ -1,6 +1,6 @@
 &spectre_config
     Nx = 256,
-    Ny_g = 200,
+    Ny_g = 257,
     Re = 2000.0,
     epsilon_svv = 1.0e-4,
     Cs = 0.2,

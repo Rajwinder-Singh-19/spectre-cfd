@@ -202,4 +202,163 @@ contains
       deallocate (counts, displs, send_buf, recv_buf)
 
    end subroutine Scatter_Column_From_0
+
+   ! ============================================================
+   ! [TEST3_1 CHANGE] Transpose_To_Modes and Transpose_From_Modes
+   !
+   ! Why: the tridiagonal system of a Fourier mode needs ALL Ny_g rows of
+   ! that mode, but each rank only holds Ny rows of EVERY mode. The original
+   ! code therefore gathered one column at a time to rank 0 and solved
+   ! every mode there. Here the data are redistributed once per solve with
+   ! one MPI_Alltoallv, so that each rank holds all Ny_g rows of its own
+   ! share of the modes and can run the (unchanged) Thomas solver on them.
+   ! A second MPI_Alltoallv sends the solutions back.
+   !
+   ! The modes are split over the ranks with the existing Decompose_Domain
+   ! (called with Nx instead of Ny_g), exactly like the rows are split:
+   ! rank r owns modes m_start..m_end, nm = m_end - m_start + 1 of them.
+   !
+   ! Transpose_To_Modes  : f_local(Ny+2, Nx)  ->  f_modes(Ny_g, nm)
+   ! Transpose_From_Modes: f_modes(Ny_g, nm)  ->  f_local(2:Ny+1, all Nx)
+   ! (ghost rows 1 and Ny+2 of f_local are not touched, as before)
+   ! ============================================================
+   subroutine Transpose_To_Modes(f_local, Ny, Ny_g, Nx, nm, &
+                                 curr_rank_mpi, num_ranks_mpi, &
+                                 f_modes, ierr_mpi)
+      use mpi
+      use, intrinsic :: iso_c_binding
+      use domain
+      implicit none
+
+      integer, intent(in) :: Ny, Ny_g, Nx, nm, curr_rank_mpi, num_ranks_mpi
+      complex(C_DOUBLE_COMPLEX), intent(in), dimension(Ny + 2, Nx) :: f_local
+      complex(C_DOUBLE_COMPLEX), intent(out), dimension(Ny_g, nm) :: f_modes
+      integer, intent(inout) :: ierr_mpi
+
+      complex(C_DOUBLE_COMPLEX), allocatable :: send_buf(:), recv_buf(:)
+      integer, allocatable :: scounts(:), sdispls(:), rcounts(:), rdispls(:)
+      integer, allocatable :: m_start_r(:), m_end_r(:), row_start_r(:), ny_r(:)
+      integer :: r, k, j, pos, nm_r, ms, me, ny_rr, gs, ge, ierr
+
+      allocate (scounts(num_ranks_mpi), sdispls(num_ranks_mpi))
+      allocate (rcounts(num_ranks_mpi), rdispls(num_ranks_mpi))
+      allocate (m_start_r(num_ranks_mpi), m_end_r(num_ranks_mpi))
+      allocate (row_start_r(num_ranks_mpi), ny_r(num_ranks_mpi))
+
+      do r = 0, num_ranks_mpi - 1
+         call Decompose_Domain(Nx, num_ranks_mpi, r, nm_r, ms, me)         ! modes owned by rank r
+         call Decompose_Domain(Ny_g, num_ranks_mpi, r, ny_rr, gs, ge)      ! rows owned by rank r
+         m_start_r(r + 1) = ms
+         m_end_r(r + 1) = me
+         row_start_r(r + 1) = gs
+         ny_r(r + 1) = ny_rr
+         scounts(r + 1) = Ny*nm_r          ! my rows of the modes that rank r owns
+         rcounts(r + 1) = ny_rr*nm         ! rank r's rows of the modes that I own
+      end do
+      sdispls(1) = 0
+      rdispls(1) = 0
+      do r = 2, num_ranks_mpi
+         sdispls(r) = sdispls(r - 1) + scounts(r - 1)
+         rdispls(r) = rdispls(r - 1) + rcounts(r - 1)
+      end do
+
+      allocate (send_buf(sum(scounts)), recv_buf(sum(rcounts)))
+
+      ! --- pack: for each destination rank, my interior rows of its modes, column by column ---
+      pos = 0
+      do r = 1, num_ranks_mpi
+         do j = m_start_r(r), m_end_r(r)
+            send_buf(pos + 1:pos + Ny) = f_local(2:Ny + 1, j)
+            pos = pos + Ny
+         end do
+      end do
+
+      call MPI_Alltoallv(send_buf, scounts, sdispls, MPI_C_DOUBLE_COMPLEX, &
+                         recv_buf, rcounts, rdispls, MPI_C_DOUBLE_COMPLEX, &
+                         MPI_COMM_WORLD, ierr)
+      if (ierr /= MPI_SUCCESS) ierr_mpi = ierr
+
+      ! --- unpack: rows of every rank, placed at their global row numbers ---
+      pos = 0
+      do r = 1, num_ranks_mpi
+         do k = 1, nm
+            f_modes(row_start_r(r):row_start_r(r) + ny_r(r) - 1, k) = recv_buf(pos + 1:pos + ny_r(r))
+            pos = pos + ny_r(r)
+         end do
+      end do
+
+      deallocate (scounts, sdispls, rcounts, rdispls, m_start_r, m_end_r, row_start_r, ny_r)
+      deallocate (send_buf, recv_buf)
+
+   end subroutine Transpose_To_Modes
+
+   subroutine Transpose_From_Modes(f_modes, Ny, Ny_g, Nx, nm, &
+                                   curr_rank_mpi, num_ranks_mpi, &
+                                   f_local, ierr_mpi)
+      use mpi
+      use, intrinsic :: iso_c_binding
+      use domain
+      implicit none
+
+      integer, intent(in) :: Ny, Ny_g, Nx, nm, curr_rank_mpi, num_ranks_mpi
+      complex(C_DOUBLE_COMPLEX), intent(in), dimension(Ny_g, nm) :: f_modes
+      complex(C_DOUBLE_COMPLEX), intent(inout), dimension(Ny + 2, Nx) :: f_local
+      integer, intent(inout) :: ierr_mpi
+
+      complex(C_DOUBLE_COMPLEX), allocatable :: send_buf(:), recv_buf(:)
+      integer, allocatable :: scounts(:), sdispls(:), rcounts(:), rdispls(:)
+      integer, allocatable :: m_start_r(:), nm_all(:), row_start_r(:), ny_r(:)
+      integer :: r, k, pos, nm_r, ms, me, ny_rr, gs, ge, ierr
+
+      allocate (scounts(num_ranks_mpi), sdispls(num_ranks_mpi))
+      allocate (rcounts(num_ranks_mpi), rdispls(num_ranks_mpi))
+      allocate (m_start_r(num_ranks_mpi), nm_all(num_ranks_mpi))
+      allocate (row_start_r(num_ranks_mpi), ny_r(num_ranks_mpi))
+
+      do r = 0, num_ranks_mpi - 1
+         call Decompose_Domain(Nx, num_ranks_mpi, r, nm_r, ms, me)
+         call Decompose_Domain(Ny_g, num_ranks_mpi, r, ny_rr, gs, ge)
+         m_start_r(r + 1) = ms
+         nm_all(r + 1) = nm_r
+         row_start_r(r + 1) = gs
+         ny_r(r + 1) = ny_rr
+         scounts(r + 1) = ny_rr*nm         ! rank r's rows of the modes that I own
+         rcounts(r + 1) = Ny*nm_r          ! my rows of the modes that rank r owns
+      end do
+      sdispls(1) = 0
+      rdispls(1) = 0
+      do r = 2, num_ranks_mpi
+         sdispls(r) = sdispls(r - 1) + scounts(r - 1)
+         rdispls(r) = rdispls(r - 1) + rcounts(r - 1)
+      end do
+
+      allocate (send_buf(sum(scounts)), recv_buf(sum(rcounts)))
+
+      ! --- pack: for each destination rank, ITS rows of my modes, column by column ---
+      pos = 0
+      do r = 1, num_ranks_mpi
+         do k = 1, nm
+            send_buf(pos + 1:pos + ny_r(r)) = f_modes(row_start_r(r):row_start_r(r) + ny_r(r) - 1, k)
+            pos = pos + ny_r(r)
+         end do
+      end do
+
+      call MPI_Alltoallv(send_buf, scounts, sdispls, MPI_C_DOUBLE_COMPLEX, &
+                         recv_buf, rcounts, rdispls, MPI_C_DOUBLE_COMPLEX, &
+                         MPI_COMM_WORLD, ierr)
+      if (ierr /= MPI_SUCCESS) ierr_mpi = ierr
+
+      ! --- unpack: my interior rows of every mode, from the rank that solved it ---
+      pos = 0
+      do r = 1, num_ranks_mpi
+         do k = 1, nm_all(r)
+            f_local(2:Ny + 1, m_start_r(r) + k - 1) = recv_buf(pos + 1:pos + Ny)
+            pos = pos + Ny
+         end do
+      end do
+
+      deallocate (scounts, sdispls, rcounts, rdispls, m_start_r, nm_all, row_start_r, ny_r)
+      deallocate (send_buf, recv_buf)
+
+   end subroutine Transpose_From_Modes
 end module comm

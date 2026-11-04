@@ -169,6 +169,9 @@ contains
 
       call MPI_Barrier(MPI_COMM_WORLD, ierr_mpi)
 
+      ! [TEST3 CHANGE] Assemble the pressure Poisson matrices once, before the time loop
+      call Pressure_Matrix_Precompute(Ny_g, Nx, kx, dy, curr_rank_mpi, num_ranks_mpi)   ! [TEST3_1 CHANGE] every rank, own modes only
+
       n = 0
       call Write_VTI(u, v, p, n, Ny, Nx, Ny_g, dy, Lx, &
                      curr_rank_mpi, num_ranks_mpi, &

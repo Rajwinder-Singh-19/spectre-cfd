@@ -118,6 +118,7 @@ contains
 
       use, intrinsic :: iso_c_binding
       use comm
+      use domain   ! [TEST3_1 CHANGE] Decompose_Domain is used to split the modes
       use poisson
       implicit none
 
@@ -138,15 +139,15 @@ contains
       complex(c_double_complex), allocatable :: b(:)
       complex(c_double_complex), allocatable :: c(:)
 
-      ! Gathered right-hand sides
-      complex(c_double_complex), allocatable :: u_rhs(:)
-      complex(c_double_complex), allocatable :: v_rhs(:)
+      ! [TEST3_1 CHANGE] Right-hand sides and solutions, now for THIS RANK'S OWN MODES only
+      ! (all Ny_g rows of nm modes), instead of one gathered column on rank 0.
+      complex(c_double_complex), allocatable :: u_rhs(:, :)
+      complex(c_double_complex), allocatable :: v_rhs(:, :)
+      complex(c_double_complex), allocatable :: u_glob(:, :)
+      complex(c_double_complex), allocatable :: v_glob(:, :)
 
-      ! Globally solved columns
-      complex(c_double_complex), allocatable :: u_glob(:)
-      complex(c_double_complex), allocatable :: v_glob(:)
-
-      integer :: i
+      integer :: i, k
+      integer :: nm, m_start, m_end   ! [TEST3_1 CHANGE] modes owned by this rank
 
       !--------------------------------------------------
       ! Allocate local arrays
@@ -156,11 +157,14 @@ contains
       allocate (b(1:Ny_g))
       allocate (c(1:Ny_g - 1))
 
-      allocate (u_rhs(1:Ny_g))
-      allocate (v_rhs(1:Ny_g))
+      ! [TEST3_1 CHANGE] modes owned by this rank (same split as the rows: Decompose_Domain with Nx)
+      call Decompose_Domain(Nx, num_ranks_mpi, curr_rank_mpi, nm, m_start, m_end)
 
-      allocate (u_glob(1:Ny_g))
-      allocate (v_glob(1:Ny_g))
+      allocate (u_rhs(1:Ny_g, nm))
+      allocate (v_rhs(1:Ny_g, nm))
+
+      allocate (u_glob(1:Ny_g, nm))
+      allocate (v_glob(1:Ny_g, nm))
 
       !--------------------------------------------------
       ! Exchange halos
@@ -176,51 +180,46 @@ contains
       ! Solve each Fourier mode independently
       !--------------------------------------------------
 
-      do i = 1, Nx
+      ! [TEST3_1 CHANGE] Was: for every mode i, gather the column to rank 0, solve on rank 0,
+      ! scatter back (4 collectives per mode). Now: one transpose per field gives every rank
+      ! all Ny_g rows of its own nm modes, every rank solves its own modes with the same
+      ! assembler and Thomas solver as before, and one transpose per field sends the answers back.
 
-         call Gather_Column_To_0(u_star, i, Ny, Ny_g, Nx, &
-                                 curr_rank_mpi, num_ranks_mpi, &
-                                 u_rhs, ierr_mpi)
+      call Transpose_To_Modes(u_star, Ny, Ny_g, Nx, nm, curr_rank_mpi, num_ranks_mpi, &
+                              u_rhs, ierr_mpi)
+      call Transpose_To_Modes(v_star, Ny, Ny_g, Nx, nm, curr_rank_mpi, num_ranks_mpi, &
+                              v_rhs, ierr_mpi)
 
-         call Gather_Column_To_0(v_star, i, Ny, Ny_g, Nx, &
-                                 curr_rank_mpi, num_ranks_mpi, &
-                                 v_rhs, ierr_mpi)
+      do i = m_start, m_end
+         k = i - m_start + 1          ! column of this mode in u_rhs, v_rhs, u_glob, v_glob
 
-         if (curr_rank_mpi == 0) then
+         ! Assemble viscous matrix (inside the loop: the viscosity changes every step)
+         call Viscous_Poisson_Assembler(Ny_g, kx(i), &
+                                        dy, dt, nu(i), a, b, c)
 
-            ! Assemble viscous matrix
-            call Viscous_Poisson_Assembler(Ny_g, kx(i), &
-                                           dy, dt, nu(i), a, b, c)
+         ! Dirichlet boundary conditions
+         u_rhs(1, k) = cmplx(0.0_c_double, 0.0_c_double, kind=c_double)
+         u_rhs(Ny_g, k) = cmplx(0.0_c_double, 0.0_c_double, kind=c_double)
 
-            ! Dirichlet boundary conditions
-            u_rhs(1) = cmplx(0.0_c_double, 0.0_c_double, kind=c_double)
-            u_rhs(Ny_g) = cmplx(0.0_c_double, 0.0_c_double, kind=c_double)
+         v_rhs(1, k) = cmplx(0.0_c_double, 0.0_c_double, kind=c_double)
+         v_rhs(Ny_g, k) = cmplx(0.0_c_double, 0.0_c_double, kind=c_double)
 
-            v_rhs(1) = cmplx(0.0_c_double, 0.0_c_double, kind=c_double)
-            v_rhs(Ny_g) = cmplx(0.0_c_double, 0.0_c_double, kind=c_double)
+         b(1) = cmplx(1.0_c_double, 0.0_c_double, kind=c_double)
+         c(1) = cmplx(0.0_c_double, 0.0_c_double, kind=c_double)
 
-            b(1) = cmplx(1.0_c_double, 0.0_c_double, kind=c_double)
-            c(1) = cmplx(0.0_c_double, 0.0_c_double, kind=c_double)
+         b(Ny_g) = cmplx(1.0_c_double, 0.0_c_double, kind=c_double)
+         a(Ny_g) = cmplx(0.0_c_double, 0.0_c_double, kind=c_double)
 
-            b(Ny_g) = cmplx(1.0_c_double, 0.0_c_double, kind=c_double)
-            a(Ny_g) = cmplx(0.0_c_double, 0.0_c_double, kind=c_double)
-
-            ! Solve for u and v
-            call Thomas_TDMA_Solver(Ny_g, a, b, c, u_rhs, u_glob)
-            call Thomas_TDMA_Solver(Ny_g, a, b, c, v_rhs, v_glob)
-
-         end if
-
-         ! Distribute solutions
-         call Scatter_Column_From_0(u_glob, Ny_g, u_star_star, i, &
-                                    Ny, Nx, curr_rank_mpi, &
-                                    num_ranks_mpi, ierr_mpi)
-
-         call Scatter_Column_From_0(v_glob, Ny_g, v_star_star, i, &
-                                    Ny, Nx, curr_rank_mpi, &
-                                    num_ranks_mpi, ierr_mpi)
-
+         ! Solve for u and v
+         call Thomas_TDMA_Solver(Ny_g, a, b, c, u_rhs(:, k), u_glob(:, k))
+         call Thomas_TDMA_Solver(Ny_g, a, b, c, v_rhs(:, k), v_glob(:, k))
       end do
+
+      ! Distribute solutions
+      call Transpose_From_Modes(u_glob, Ny, Ny_g, Nx, nm, curr_rank_mpi, num_ranks_mpi, &
+                                u_star_star, ierr_mpi)
+      call Transpose_From_Modes(v_glob, Ny, Ny_g, Nx, nm, curr_rank_mpi, num_ranks_mpi, &
+                                v_star_star, ierr_mpi)
 
       if (curr_rank_mpi == 0) then
          u_star_star(2, :) = cmplx(0.0_c_double, 0.0_c_double, c_double)
@@ -287,6 +286,7 @@ contains
 
       use, intrinsic :: iso_c_binding
       use comm
+      use domain   ! [TEST3_1 CHANGE] Decompose_Domain is used to split the modes
       use poisson
       use field
       implicit none
@@ -306,15 +306,14 @@ contains
       ! Derivatives
       complex(c_double_complex), allocatable :: div_uv(:, :)
 
-      ! Tridiagonal coefficients
-      complex(c_double_complex), allocatable :: a(:)
-      complex(c_double_complex), allocatable :: b(:)
-      complex(c_double_complex), allocatable :: c(:)
+      ! [TEST3 CHANGE] The tridiagonal coefficient arrays a, b, c that used to be declared and
+      ! allocated here are gone: the matrices are stored in module poisson (p_mat_a/b/c).
 
-      ! Gathered RHS and pressure solution
-      complex(c_double_complex), allocatable :: rhs(:)
-      complex(c_double_complex), allocatable :: p_glob(:)
-      integer :: i
+      ! [TEST3_1 CHANGE] RHS and pressure solution for THIS RANK'S OWN MODES (Ny_g rows, nm modes)
+      complex(c_double_complex), allocatable :: rhs(:, :)
+      complex(c_double_complex), allocatable :: p_glob(:, :)
+      integer :: i, k
+      integer :: nm, m_start, m_end   ! [TEST3_1 CHANGE] modes owned by this rank
 
       !--------------------------------------------------
       ! Allocate arrays
@@ -322,12 +321,10 @@ contains
 
       allocate (div_uv(Ny + 2, Nx))
 
-      allocate (a(2:Ny_g))
-      allocate (b(1:Ny_g))
-      allocate (c(1:Ny_g - 1))
-
-      allocate (rhs(Ny_g))
-      allocate (p_glob(Ny_g))
+      ! [TEST3_1 CHANGE]
+      call Decompose_Domain(Nx, num_ranks_mpi, curr_rank_mpi, nm, m_start, m_end)
+      allocate (rhs(Ny_g, nm))
+      allocate (p_glob(Ny_g, nm))
 
       !--------------------------------------------------
       ! Calculate velocity divergence
@@ -346,52 +343,45 @@ contains
       ! Solve each Fourier mode
       !--------------------------------------------------
 
-      do i = 1, Nx
+      ! [TEST3_1 CHANGE] Same idea as in Implicit_Viscous_Step: transpose so that every rank
+      ! owns all Ny_g rows of its own modes, solve those modes locally, transpose back.
 
-         ! Gather divergence of velocity
+      ! Redistribute divergence of velocity
+      call Transpose_To_Modes(div_uv, Ny, Ny_g, Nx, nm, curr_rank_mpi, num_ranks_mpi, &
+                              rhs, ierr_mpi)
+
+      do i = m_start, m_end
+         k = i - m_start + 1          ! column of this mode in rhs and p_glob
+
          ! RHS = (du/dx + dv/dy)/dt
+         rhs(:, k) = rhs(:, k)/dt
 
-         call Gather_Column_To_0(div_uv, i, Ny, Ny_g, Nx, &
-                                 curr_rank_mpi, num_ranks_mpi, &
-                                 rhs, ierr_mpi)
+         ! [TEST3 CHANGE] The pressure matrix is not assembled here: it was assembled
+         ! once, before the time loop, by Pressure_Matrix_Precompute (poisson.f90).
 
-         if (curr_rank_mpi == 0) then
+         !--------------------------------------------------
+         ! Neumann boundary conditions
+         !--------------------------------------------------
 
-            rhs = rhs/dt
+         if (abs(kx(i)) < 1.0e-12_c_double) then
 
-            ! Assemble pressure Poisson matrix
-            call Pressure_Poisson_Assembler(Ny_g, kx(i), dy, a, b, c)
-
-            !--------------------------------------------------
-            ! Neumann boundary conditions
-            !--------------------------------------------------
-
-            if (abs(kx(i)) < 1.0e-12_c_double) then
-
-               ! Fix the pressure gauge: p(1) = 0.
-               b(1) = cmplx(1.0_c_double, 0.0_c_double, &
-                            kind=c_double)
-
-               c(1) = cmplx(0.0_c_double, 0.0_c_double, &
-                            kind=c_double)
-
-               rhs(1) = cmplx(0.0_c_double, 0.0_c_double, &
+            ! Fix the pressure gauge: p(1) = 0.
+            ! (the matrix part, b(1) = 1 and c(1) = 0, is already in the stored matrix)
+            rhs(1, k) = cmplx(0.0_c_double, 0.0_c_double, &
                               kind=c_double)
-
-            end if
-
-            ! Solve pressure Poisson equation
-
-            call Thomas_TDMA_Solver(Ny_g, a, b, c, rhs, &
-                                    p_glob)
 
          end if
 
-         ! Scatter pressure solution
-         call Scatter_Column_From_0(p_glob, Ny_g, p, i, Ny, Nx, &
-                                    curr_rank_mpi, num_ranks_mpi, ierr_mpi)
+         ! Solve pressure Poisson equation with the stored matrix of mode i
 
+         call Thomas_TDMA_Solver(Ny_g, p_mat_a(:, i), p_mat_b(:, i), &
+                                 p_mat_c(:, i), rhs(:, k), &
+                                 p_glob(:, k))
       end do
+
+      ! Send pressure solution back
+      call Transpose_From_Modes(p_glob, Ny, Ny_g, Nx, nm, curr_rank_mpi, num_ranks_mpi, &
+                                p, ierr_mpi)
 
       !--------------------------------------------------
       ! Exchange pressure halos
@@ -405,7 +395,6 @@ contains
       !--------------------------------------------------
 
       deallocate (div_uv)
-      deallocate (a, b, c)
       deallocate (rhs, p_glob)
 
    end subroutine Pressure_Poisson_Step

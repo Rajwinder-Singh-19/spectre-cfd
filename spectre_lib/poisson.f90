@@ -1,5 +1,16 @@
 module poisson
+   use, intrinsic :: iso_c_binding
    implicit none
+
+   ! [TEST3 CHANGE] Pressure Poisson matrices, assembled ONCE before the time loop.
+   ! The pressure matrix depends only on kx and dy (not on dt or the viscosity), so it
+   ! is identical at every time step. Column i holds the tridiagonal matrix of Fourier
+   ! mode i.
+   ! [TEST3_1 CHANGE] Every rank now solves its own share of the modes (see comm.f90,
+   ! Transpose_To_Modes), so every rank fills and stores only the columns of its own modes.
+   complex(C_DOUBLE_COMPLEX), allocatable, save :: p_mat_a(:, :)   ! sub-diagonal   (2:Ny_g, Nx)
+   complex(C_DOUBLE_COMPLEX), allocatable, save :: p_mat_b(:, :)   ! diagonal       (1:Ny_g, Nx)
+   complex(C_DOUBLE_COMPLEX), allocatable, save :: p_mat_c(:, :)   ! super-diagonal (1:Ny_g-1, Nx)
 
 contains
    subroutine Thomas_TDMA_Solver(Ny_g, a_c, b_c, c_c, d_c, x)
@@ -84,4 +95,37 @@ contains
       a(Ny_g) = cmplx(2.0_C_DOUBLE*inv_dy2, 0.0_C_DOUBLE, C_DOUBLE)
 
    end subroutine Pressure_Poisson_Assembler
+
+   ! [TEST3 CHANGE] ---------------------------------------------------------------
+   ! Assemble the pressure Poisson matrix of every Fourier mode once and store it.
+   ! Called once from Fractional_Step_Solver before the time loop. The coefficients
+   ! stay complex, exactly as in the original code. The kx = 0 gauge condition on the
+   ! matrix (p(1) = 0) is applied here; the matching right-hand-side entry stays in
+   ! Pressure_Poisson_Step because the right-hand side changes every step.
+   subroutine Pressure_Matrix_Precompute(Ny_g, Nx, kx, dy, curr_rank_mpi, num_ranks_mpi)
+      use domain
+      implicit none
+      integer, intent(in) :: Ny_g, Nx, curr_rank_mpi, num_ranks_mpi
+      real(c_double), intent(in) :: kx(Nx)
+      real(c_double), intent(in) :: dy
+      integer :: i, nm, m_start, m_end
+
+      ! [TEST3_1 CHANGE] modes owned by this rank (same split as in Transpose_To_Modes)
+      call Decompose_Domain(Nx, num_ranks_mpi, curr_rank_mpi, nm, m_start, m_end)
+
+      allocate (p_mat_a(2:Ny_g, Nx))
+      allocate (p_mat_b(1:Ny_g, Nx))
+      allocate (p_mat_c(1:Ny_g - 1, Nx))
+
+      do i = m_start, m_end
+         call Pressure_Poisson_Assembler(Ny_g, kx(i), dy, &
+                                         p_mat_a(:, i), p_mat_b(:, i), p_mat_c(:, i))
+
+         if (abs(kx(i)) < 1.0e-12_c_double) then
+            ! Fix the pressure gauge: p(1) = 0.
+            p_mat_b(1, i) = cmplx(1.0_c_double, 0.0_c_double, kind=c_double)
+            p_mat_c(1, i) = cmplx(0.0_c_double, 0.0_c_double, kind=c_double)
+         end if
+      end do
+   end subroutine Pressure_Matrix_Precompute
 end module poisson
