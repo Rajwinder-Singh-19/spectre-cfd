@@ -81,10 +81,10 @@ contains
 
    end subroutine Kolmogorov_Smooth_SVV
 
-   subroutine Plateau_SVV(kxi, epsilon_svv, k_cut, k_Nyq, Q_k, nu_svv)
+   subroutine Plateau_SVV(kxi, epsilon_svv, k_cut, Q_k, nu_svv)
       use, intrinsic :: iso_c_binding
       implicit none
-      real(C_DOUBLE), intent(in)  :: kxi, epsilon_svv, k_cut, k_Nyq
+      real(C_DOUBLE), intent(in)  :: kxi, epsilon_svv, k_cut
       real(C_DOUBLE), intent(out) :: Q_k, nu_svv
       real(C_DOUBLE) :: abs_k
 

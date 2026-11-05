@@ -204,7 +204,7 @@ contains
    end subroutine Scatter_Column_From_0
 
    ! ============================================================
-   ! [TEST3_1 CHANGE] Transpose_To_Modes and Transpose_From_Modes
+   ! Transpose_To_Modes and Transpose_From_Modes
    !
    ! Why: the tridiagonal system of a Fourier mode needs ALL Ny_g rows of
    ! that mode, but each rank only holds Ny rows of EVERY mode. The original
@@ -220,17 +220,16 @@ contains
    !
    ! Transpose_To_Modes  : f_local(Ny+2, Nx)  ->  f_modes(Ny_g, nm)
    ! Transpose_From_Modes: f_modes(Ny_g, nm)  ->  f_local(2:Ny+1, all Nx)
-   ! (ghost rows 1 and Ny+2 of f_local are not touched, as before)
    ! ============================================================
    subroutine Transpose_To_Modes(f_local, Ny, Ny_g, Nx, nm, &
-                                 curr_rank_mpi, num_ranks_mpi, &
+                                 num_ranks_mpi, &
                                  f_modes, ierr_mpi)
       use mpi
       use, intrinsic :: iso_c_binding
       use domain
       implicit none
 
-      integer, intent(in) :: Ny, Ny_g, Nx, nm, curr_rank_mpi, num_ranks_mpi
+      integer, intent(in) :: Ny, Ny_g, Nx, nm, num_ranks_mpi
       complex(C_DOUBLE_COMPLEX), intent(in), dimension(Ny + 2, Nx) :: f_local
       complex(C_DOUBLE_COMPLEX), intent(out), dimension(Ny_g, nm) :: f_modes
       integer, intent(inout) :: ierr_mpi
@@ -293,14 +292,14 @@ contains
    end subroutine Transpose_To_Modes
 
    subroutine Transpose_From_Modes(f_modes, Ny, Ny_g, Nx, nm, &
-                                   curr_rank_mpi, num_ranks_mpi, &
+                                   num_ranks_mpi, &
                                    f_local, ierr_mpi)
       use mpi
       use, intrinsic :: iso_c_binding
       use domain
       implicit none
 
-      integer, intent(in) :: Ny, Ny_g, Nx, nm, curr_rank_mpi, num_ranks_mpi
+      integer, intent(in) :: Ny, Ny_g, Nx, nm, num_ranks_mpi
       complex(C_DOUBLE_COMPLEX), intent(in), dimension(Ny_g, nm) :: f_modes
       complex(C_DOUBLE_COMPLEX), intent(inout), dimension(Ny + 2, Nx) :: f_local
       integer, intent(inout) :: ierr_mpi

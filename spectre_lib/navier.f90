@@ -118,7 +118,7 @@ contains
 
       use, intrinsic :: iso_c_binding
       use comm
-      use domain   ! [TEST3_1 CHANGE] Decompose_Domain is used to split the modes
+      use domain
       use poisson
       implicit none
 
@@ -185,9 +185,9 @@ contains
       ! all Ny_g rows of its own nm modes, every rank solves its own modes with the same
       ! assembler and Thomas solver as before, and one transpose per field sends the answers back.
 
-      call Transpose_To_Modes(u_star, Ny, Ny_g, Nx, nm, curr_rank_mpi, num_ranks_mpi, &
+      call Transpose_To_Modes(u_star, Ny, Ny_g, Nx, nm, num_ranks_mpi, &
                               u_rhs, ierr_mpi)
-      call Transpose_To_Modes(v_star, Ny, Ny_g, Nx, nm, curr_rank_mpi, num_ranks_mpi, &
+      call Transpose_To_Modes(v_star, Ny, Ny_g, Nx, nm, num_ranks_mpi, &
                               v_rhs, ierr_mpi)
 
       do i = m_start, m_end
@@ -216,9 +216,9 @@ contains
       end do
 
       ! Distribute solutions
-      call Transpose_From_Modes(u_glob, Ny, Ny_g, Nx, nm, curr_rank_mpi, num_ranks_mpi, &
+      call Transpose_From_Modes(u_glob, Ny, Ny_g, Nx, nm, num_ranks_mpi, &
                                 u_star_star, ierr_mpi)
-      call Transpose_From_Modes(v_glob, Ny, Ny_g, Nx, nm, curr_rank_mpi, num_ranks_mpi, &
+      call Transpose_From_Modes(v_glob, Ny, Ny_g, Nx, nm, num_ranks_mpi, &
                                 v_star_star, ierr_mpi)
 
       if (curr_rank_mpi == 0) then
@@ -347,7 +347,7 @@ contains
       ! owns all Ny_g rows of its own modes, solve those modes locally, transpose back.
 
       ! Redistribute divergence of velocity
-      call Transpose_To_Modes(div_uv, Ny, Ny_g, Nx, nm, curr_rank_mpi, num_ranks_mpi, &
+      call Transpose_To_Modes(div_uv, Ny, Ny_g, Nx, nm, num_ranks_mpi, &
                               rhs, ierr_mpi)
 
       do i = m_start, m_end
@@ -356,7 +356,7 @@ contains
          ! RHS = (du/dx + dv/dy)/dt
          rhs(:, k) = rhs(:, k)/dt
 
-         ! [TEST3 CHANGE] The pressure matrix is not assembled here: it was assembled
+         ! The pressure matrix is not assembled here: it was assembled
          ! once, before the time loop, by Pressure_Matrix_Precompute (poisson.f90).
 
          !--------------------------------------------------
@@ -380,7 +380,7 @@ contains
       end do
 
       ! Send pressure solution back
-      call Transpose_From_Modes(p_glob, Ny, Ny_g, Nx, nm, curr_rank_mpi, num_ranks_mpi, &
+      call Transpose_From_Modes(p_glob, Ny, Ny_g, Nx, nm, num_ranks_mpi, &
                                 p, ierr_mpi)
 
       !--------------------------------------------------

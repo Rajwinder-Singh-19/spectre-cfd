@@ -2,7 +2,7 @@ module solver
    implicit none
 
 contains
-   subroutine Fractional_Step_Solver(Nx, Ny_g, Re, epsilon_svv, Cs, cfl_target, n_steps, dpdx, eps_pert, k_mode_seed, kc_ratio, curr_rank_mpi, num_ranks_mpi, ierr_mpi)
+   subroutine Fractional_Step_Solver(Nx, Ny_g, Re, epsilon_svv, Cs, cfl_target, n_steps, dpdx, eps_pert, k_mode_seed, kc_ratio, svv_model, curr_rank_mpi, num_ranks_mpi, ierr_mpi)
 
       use, intrinsic :: iso_c_binding
       use mpi
@@ -41,6 +41,7 @@ contains
       real(c_double), intent(in) :: eps_pert
       integer, intent(in) :: k_mode_seed
       real(c_double), intent(in)::kc_ratio
+      integer, intent(in)::svv_model
 
       integer, intent(in) :: n_steps
       real(c_double) :: dpdx
@@ -190,8 +191,26 @@ contains
          ! 2. Calculate SVV viscosity
          !-----------------------------------------------
 
+         nu_svv = 0.0_c_double
          do i = 1, Nx
-            call Exponential_SVV(kx(i), epsilon_svv, kc, k_nyq, Q_k, nu_svv(i))
+            select case (svv_model)
+            case (1)
+               call Exponential_SVV(kx(i), epsilon_svv, kc, k_nyq, Q_k, nu_svv(i))
+            case (2)
+               call Kolmogorov_Sharp_SVV(kx(i), epsilon_svv, kc, k_nyq, Q_k, nu_svv(i))
+            case (3)
+               call Kolmogorov_Smooth_SVV(kx(i), epsilon_svv, kc, k_nyq, Q_k, nu_svv(i))
+            case (4)
+               call Plateau_SVV(kx(i), epsilon_svv, kc, Q_k, nu_svv(i))
+            case (5)
+               call Power_2_SVV(kx(i), epsilon_svv, kc, k_nyq, Q_k, nu_svv(i))
+            case (6)
+               call Power_3_SVV(kx(i), epsilon_svv, kc, k_nyq, Q_k, nu_svv(i))
+            case (7)
+               call Power_4_SVV(kx(i), epsilon_svv, kc, k_nyq, Q_k, nu_svv(i))
+            case default
+               call Kolmogorov_Smooth_SVV(kx(i), epsilon_svv, kc, k_nyq, Q_k, nu_svv(i))
+            end select
          end do
 
          !-----------------------------------------------

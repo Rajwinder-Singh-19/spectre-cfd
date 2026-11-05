@@ -23,7 +23,9 @@ program main
    real(c_double)::eps_pert
    integer :: k_mode_seed
    real(c_double)::kc_ratio
-   namelist /spectre_parameters/ Nx, Ny_g, Re, epsilon_svv, Cs, cfl_target, n_steps, dpdx, eps_pert, k_mode_seed, kc_ratio
+   integer::svv_model
+   character(100)::svv_model_name
+  namelist /spectre_parameters/ Nx, Ny_g, Re, epsilon_svv, Cs, cfl_target, n_steps, dpdx, eps_pert, k_mode_seed, kc_ratio, svv_model
 
    call Init_MPI(curr_rank_mpi, num_ranks_mpi, ierr_mpi)
 
@@ -33,11 +35,6 @@ program main
          print *, "Error: Namelist file not found."
          call MPI_Abort(MPI_COMM_WORLD, io_status, ierr_mpi)
       end if
-
-      !if (abs(kc_ratio - 0.5_c_double) <= 1e-12) then
-      !  print *, "Turbulence Highpass Cutoff Ratio kc_ratio is unstable below 0.5"
-      !   call MPI_Abort(MPI_COMM_WORLD, io_status, ierr_mpi)
-      !end if
 
       read (file_unit, nml=spectre_parameters, iostat=io_status)
       if (io_status /= 0) then
@@ -53,6 +50,7 @@ program main
    call MPI_Bcast(Ny_g, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr_mpi)
    call MPI_Bcast(n_steps, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr_mpi)
    call MPI_Bcast(k_mode_seed, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr_mpi)
+   call MPI_Bcast(svv_model, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr_mpi)
 
    ! Double precision broadcasts (1 element each)
    call MPI_Bcast(Re, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD, ierr_mpi)
@@ -61,10 +59,29 @@ program main
    call MPI_Bcast(cfl_target, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD, ierr_mpi)
    call MPI_Bcast(dpdx, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD, ierr_mpi)
    call MPI_Bcast(eps_pert, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD, ierr_mpi)
-   call MPI_Bcast(kc_ratio, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr_mpi)
+   call MPI_Bcast(kc_ratio, 1, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr_mpi)
 
    ! --- PRINT FROM RANK 0 ONLY ---
    if (curr_rank_mpi == 0) then
+      select case (svv_model)
+      case (1)
+         svv_model_name = "Exponential"
+      case (2)
+         svv_model_name = "Kolmogorov Sharp"
+      case (3)
+         svv_model_name = "Kolmogorov Smooth"
+      case (4)
+         svv_model_name = "Plateau"
+      case (5)
+         svv_model_name = "Power (Exponent 2)"
+      case (6)
+         svv_model_name = "Power (Exponent 3)"
+      case (7)
+         svv_model_name = "Power (Exponent 4)"
+      case default
+         svv_model_name = "Exponential"
+
+      end select
       print '(A)', "==============================================================================================="
       print '(A)', "     SPECTRE - Parallel, Pseudo-Spectral Navier-Stokes Solver for Turbulent Channel Flow"
       print '(A)', "=============================================================================================="
@@ -79,6 +96,7 @@ program main
       print '(A25, F8.4)', "Seed Amp:", eps_pert
       print '(A25, I6)', "Seed Mode:", k_mode_seed
       print '(A25, F8.4)', "Turb. HP Cutoff:", kc_ratio
+      print '(A25, A)', "SVV Model: ", svv_model_name
       print '(A25, I4)', " Running on MPI Ranks:", num_ranks_mpi
       print '(A)', "=============================================================================================="
    end if
@@ -87,7 +105,7 @@ program main
 
    start_time = MPI_Wtime()
 
-   call Fractional_Step_Solver(Nx, Ny_g, Re, epsilon_svv, Cs, cfl_target, n_steps, dpdx, eps_pert, k_mode_seed, kc_ratio, curr_rank_mpi, num_ranks_mpi, ierr_mpi)
+   call Fractional_Step_Solver(Nx, Ny_g, Re, epsilon_svv, Cs, cfl_target, n_steps, dpdx, eps_pert, k_mode_seed, kc_ratio, svv_model, curr_rank_mpi, num_ranks_mpi, ierr_mpi)
 
    end_time = MPI_Wtime()
    local_elapsed = end_time - start_time
