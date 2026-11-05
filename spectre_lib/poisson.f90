@@ -2,11 +2,11 @@ module poisson
    use, intrinsic :: iso_c_binding
    implicit none
 
-   ! [TEST3 CHANGE] Pressure Poisson matrices, assembled ONCE before the time loop.
+   ! Pressure Poisson matrices, assembled ONCE before the time loop.
    ! The pressure matrix depends only on kx and dy (not on dt or the viscosity), so it
    ! is identical at every time step. Column i holds the tridiagonal matrix of Fourier
    ! mode i.
-   ! [TEST3_1 CHANGE] Every rank now solves its own share of the modes (see comm.f90,
+   ! Every rank solves its own share of the modes (see comm.f90,
    ! Transpose_To_Modes), so every rank fills and stores only the columns of its own modes.
    complex(C_DOUBLE_COMPLEX), allocatable, save :: p_mat_a(:, :)   ! sub-diagonal   (2:Ny_g, Nx)
    complex(C_DOUBLE_COMPLEX), allocatable, save :: p_mat_b(:, :)   ! diagonal       (1:Ny_g, Nx)
@@ -110,7 +110,7 @@ contains
       real(c_double), intent(in) :: dy
       integer :: i, nm, m_start, m_end
 
-      ! [TEST3_1 CHANGE] modes owned by this rank (same split as in Transpose_To_Modes)
+      ! modes owned by this rank (same split as in Transpose_To_Modes)
       call Decompose_Domain(Nx, num_ranks_mpi, curr_rank_mpi, nm, m_start, m_end)
 
       allocate (p_mat_a(2:Ny_g, Nx))

@@ -359,10 +359,6 @@ contains
          ! The pressure matrix is not assembled here: it was assembled
          ! once, before the time loop, by Pressure_Matrix_Precompute (poisson.f90).
 
-         !--------------------------------------------------
-         ! Neumann boundary conditions
-         !--------------------------------------------------
-
          if (abs(kx(i)) < 1.0e-12_c_double) then
 
             ! Fix the pressure gauge: p(1) = 0.

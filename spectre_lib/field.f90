@@ -1,6 +1,7 @@
 module field
    implicit none
    ! All input fields are in fourier space unless specified otherwise
+   ! All the subroutines are generic field operators which compute that local grid derivatives and related quantities used in navier-stokes
 contains
    subroutine Dx_Spectral(f, Ny, Nx, kx, curr_rank_mpi, num_ranks_mpi, df_dx)
       use, intrinsic::iso_c_binding
