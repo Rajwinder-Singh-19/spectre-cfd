@@ -10,5 +10,5 @@
     eps_pert = 2
     k_mode_seed = 2
     kc_ratio = 0.1
-    svv_model = 4
+    svv_model = 3
 /

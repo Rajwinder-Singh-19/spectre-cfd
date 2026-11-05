@@ -4,6 +4,15 @@
 
 SPECTRE is a two-dimensional, parallel, pseudo-spectral solver for incompressible turbulent channel flow. The streamwise direction is treated spectrally via FFTW, while the wall-normal direction uses second-order finite differences. Time integration follows a fractional-step (projection) method with an implicit treatment of viscous diffusion and explicit treatment of convection. Turbulence is modelled using Spectral Vanishing Viscosity (SVV) combined with a Chollet–Lesieur subgrid-scale viscosity.
 
+## Contributions
+
+| Name | Email | Contributions |
+|------|-------|---------------|
+| Rajwinder Singh | <i.am.rajwinder.19@gmail.com> | Lead developer. Spectral discretization (`fft.f90`, `field.f90`); fractional-step time integration and solver orchestration (`solver.f90`, `navier.f90`); linear solvers and Poisson matrix assembly (`poisson.f90`); SVV kernels, Chollet–Lesieur SGS model and turbulence seeding (`turbulence.f90`); program entry and namelist handling (`main.f90`). |
+| Mohammad Tajwarul Islam | <tajwarulislam@gmail.com> | MPI parallelization: domain decomposition and neighbour ranks (`domain.f90`); halo exchange with derived datatypes, gather/scatter, and the mode-transpose (`MPI_Alltoallv`) mechanism (`comm.f90`); code optimization and refactoring, including pressure-matrix precompute and the elimination of per-mode rank-0 gather/scatter. |
+| Yuk Pooi Oscar Lui | <yukpooi@outlook.com> | Validation and testing: verification of the fractional-step scheme and dealiasing, conservation and divergence checks, and use of the diagnostics suite (`diagnostics.f90`) to assess energy, enstrophy, CFL and effective viscosity across parameter sweeps. |
+| Hang Yang | <352906648@qq.com> | Validation and documentation: validation against canonical channel-flow results, output and post-processing via the VTK writer (`vti_writer.f90`), and preparation of the README, configuration reference and usage documentation. |
+
 ---
 
 ## Table of Contents
