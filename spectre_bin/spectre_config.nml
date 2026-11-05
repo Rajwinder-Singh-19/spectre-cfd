@@ -1,9 +1,9 @@
 &spectre_parameters
     Nx = 256,
     Ny_g = 257,
-    Re = 1000.0,
-    epsilon_svv = 3.0e-3,
-    Cs = 0.2,
+    Re = 100.0,
+    epsilon_svv = 2.0e-2,
+    Cs = 0.25,
     cfl_target = 0.1,
     n_steps = 40000
     dpdx = -1

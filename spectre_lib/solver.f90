@@ -102,7 +102,7 @@ contains
       ! Domain setup
       !--------------------------------------------------
 
-      dy = Ly/real(Ny_g, c_double)
+      dy = Ly/(real(Ny_g, c_double) - 1.0_c_double)
 
       call Decompose_Domain(Ny_g, num_ranks_mpi, curr_rank_mpi, &
                             Ny, start_row, end_row)
