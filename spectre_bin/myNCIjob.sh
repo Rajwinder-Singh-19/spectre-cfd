@@ -13,4 +13,4 @@ cd $PBS_O_WORKDIR
 ##mpirun -np 2 /home/YOUR UNIQUE PATH TO YOUR EXE..... > output.log
 
 ##my job looks like this
-mpirun -np 12 ./main  > spectre_log.txt
+mpirun -np 12 ./spectre > spectre_log.txt
